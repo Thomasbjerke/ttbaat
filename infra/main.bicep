@@ -180,6 +180,16 @@ var tags = { 'azd-env-name': environmentName }
 var tenantIdForAuth = !empty(authTenantId) ? authTenantId : tenantId
 var authenticationIssuerUri = '${environment().authentication.loginEndpoint}${tenantIdForAuth}/v2.0'
 
+// Configure CORS for allowing different web apps to use the backend
+// For more information please see https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+var msftAllowedOrigins = [ 'https://portal.azure.com', 'https://ms.portal.azure.com' ]
+var loginEndpoint = environment().authentication.loginEndpoint
+var loginEndpointFixed = lastIndexOf(loginEndpoint, '/') == length(loginEndpoint) - 1 ? substring(loginEndpoint, 0, length(loginEndpoint) - 1) : loginEndpoint
+var allMsftAllowedOrigins = !(empty(clientAppId)) ? union(msftAllowedOrigins, [ loginEndpointFixed ]) : msftAllowedOrigins
+var allowedOrigins = union(split(allowedOrigin, ';'), allMsftAllowedOrigins)
+// Filter out any empty origin strings and remove any duplicate origins
+var allowedOriginsEnv = join(reduce(filter(allowedOrigins, o => length(trim(o)) > 0), [], (cur, next) => union(cur, [next])), ';')
+
 @description('Whether the deployment is running on GitHub Actions')
 param runningOnGh string = ''
 
@@ -272,7 +282,7 @@ module backend 'core/host/appservice.bicep' = {
     managedIdentity: true
     virtualNetworkSubnetId: isolation.outputs.appSubnetId
     publicNetworkAccess: publicNetworkAccess
-    allowedOrigins: [ allowedOrigin ]
+    allowedOrigins: allowedOrigins
     clientAppId: clientAppId
     serverAppId: serverAppId
     enableUnauthenticatedAccess: enableUnauthenticatedAccess
@@ -325,7 +335,7 @@ module backend 'core/host/appservice.bicep' = {
       AZURE_AUTH_TENANT_ID: tenantIdForAuth
       AZURE_AUTHENTICATION_ISSUER_URI: authenticationIssuerUri
       // CORS support, for frontends on other hosts
-      ALLOWED_ORIGIN: allowedOrigin
+      ALLOWED_ORIGIN: allowedOriginsEnv
       USE_VECTORS: useVectors
       USE_GPT4V: useGPT4V
       USE_USER_UPLOAD: useUserUpload
@@ -849,4 +859,5 @@ output AZURE_USERSTORAGE_RESOURCE_GROUP string = storageResourceGroup.name
 
 output AZURE_USE_AUTHENTICATION bool = useAuthentication
 
+output ALLOWED_ORIGIN string = allowedOriginsEnv
 output BACKEND_URI string = backend.outputs.uri
