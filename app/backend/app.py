@@ -712,6 +712,7 @@ async def close_clients():
 
 def create_app():
     app = Quart(__name__)
+    app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
     app.register_blueprint(bp)
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
